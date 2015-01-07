@@ -19,9 +19,4 @@
                                   [puppetlabs/trapperkeeper-webserver-jetty9 ~tk-jetty-version]
                                   [puppetlabs/trapperkeeper-webserver-jetty9 ~tk-jetty-version :classifier "test"]
                                   [ring-mock "0.1.5"]]}}
-
-  :aliases {"tk" ["trampoline" "run" "--config" "dev-resources/config.conf"]}
-
-  :main puppetlabs.trapperkeeper.main
-
   )

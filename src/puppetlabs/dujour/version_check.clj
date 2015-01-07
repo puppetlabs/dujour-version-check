@@ -22,8 +22,8 @@
 
 (def ProductName
   (schema/conditional
-    #(string? %) schema/Str
-    #(map? %) ProductCoords))
+    string? schema/Str
+    map?    ProductCoords))
 
 (def UpdateInfo
   {:version schema/Str
@@ -46,10 +46,9 @@
                 :artifact-id product-name}
     ProductCoords product-name))
 
-(schema/defn version*
+(schema/defn version* :- schema/Str
   "Get the version number of this installation."
   [group-id artifact-id]
-  {:post [(string? %)]}
   (version/get-version group-id artifact-id))
 
 (def version
@@ -87,7 +86,7 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;; Public
 
-(defn check-for-updates
+(defn check-for-updates!
   "This will fetch the latest version number and log if the system
   is out of date."
   [product-name update-server-url]
@@ -109,7 +108,7 @@
   (validate-config! product-name update-server-url)
   (future
     (try
-      (check-for-updates product-name update-server-url)
+      (check-for-updates! product-name update-server-url)
       (catch Exception e
         (log/warn e "Error occurred while checking for updates")
         (throw e)))))

@@ -33,14 +33,14 @@
   {:status 500
    :body "aaaaaaaaaaaaaaaaaaaaaaaaaa"})
 
-(deftest test-check-for-updates
+(deftest test-check-for-updates!
   (with-test-logging
     (jetty9/with-test-webserver update-available-app port
-                                (check-for-updates "foo" (format "http://localhost:%s" port))
+                                (check-for-updates! "foo" (format "http://localhost:%s" port))
                                 (is (logged? #"Newer version 9000.0.0 is available!" :info))))
   (with-test-logging
     (jetty9/with-test-webserver server-error-app port
-                                (check-for-updates "foo" (format "http://localhost:%s" port))
+                                (check-for-updates! "foo" (format "http://localhost:%s" port))
                                 (is (logged? #"Could not retrieve update information" :debug)))))
 
 (deftest test-version-check
