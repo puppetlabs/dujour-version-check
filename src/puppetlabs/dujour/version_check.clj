@@ -25,6 +25,9 @@
     string? schema/Str
     map?    ProductCoords))
 
+(def RequestValues
+  {:product-name ProductName})
+
 (def UpdateInfo
   {:version schema/Str
    :newer   schema/Bool
@@ -60,9 +63,10 @@
   version. Returns the JSON object received from the server, which
   is expected to be a map containing keys `:version`, `:newer`, and `:link`.
   Returns `nil` if the request does not succeed for some reason."
-  [product-name :- ProductName
+  [request-values :- RequestValues
    update-server-url :- schema/Str]
-  (let [{:keys [group-id artifact-id]} (get-coords product-name)
+  (let [product-name (:product-name request-values)
+        {:keys [group-id artifact-id]} (get-coords product-name)
         current-version (version group-id artifact-id)
         version-data {:version current-version}
         query-string (ring-codec/form-encode version-data)
@@ -77,10 +81,10 @@
 
 
 (defn validate-config!
-  [product-name update-server-url]
+  [request-values update-server-url]
   ;; if this ends up surfacing error messages that aren't very user-friendly,
   ;; we can improve the validation logic.
-  (schema/validate ProductName product-name)
+  (schema/validate RequestValues request-values)
   (schema/validate (schema/maybe schema/Str) update-server-url))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -89,11 +93,11 @@
 (defn check-for-updates!
   "This will fetch the latest version number and log if the system
   is out of date."
-  [product-name update-server-url]
-  (log/debugf "Checking for newer versions of %s" product-name)
+  [request-values update-server-url]
+  (log/debugf "Checking for newer versions of %s" (:product-name request-values))
   (let [update-server-url             (or update-server-url default-update-server-url)
         {:keys [version newer link]}  (try
-                                        (update-info product-name update-server-url)
+                                        (update-info request-values update-server-url)
                                         (catch Throwable e
                                           (log/debug e (format "Could not retrieve update information (%s)" update-server-url))))
         link-str (if link
@@ -104,16 +108,16 @@
       (log/info update-msg))))
 
 (defn version-check
-  ([product-name update-server-url]
-    (version-check product-name update-server-url nil nil))
-  ([product-name update-server-url watch-key watch-fn]
-    (validate-config! product-name update-server-url)
+  ([request-values update-server-url]
+    (version-check request-values update-server-url nil nil))
+  ([request-values update-server-url watch-key watch-fn]
+    (validate-config! request-values update-server-url)
     (let [version-agent (agent {:status :in-progress})]
       (if (and watch-key watch-fn)
         (add-watch version-agent watch-key watch-fn))
       (send version-agent
             (try
-              (check-for-updates! product-name update-server-url)
+              (check-for-updates! request-values update-server-url)
               ; This is required to update the state of the agent and trigger
               ; the agent watches added in the tests
               {}
