@@ -104,12 +104,20 @@
       (log/info update-msg))))
 
 (defn version-check
-  [product-name update-server-url]
-  (validate-config! product-name update-server-url)
-  (future
-    (try
-      (check-for-updates! product-name update-server-url)
-      (catch Exception e
-        (log/warn e "Error occurred while checking for updates")
-        (throw e)))))
+  ([product-name update-server-url]
+    (version-check product-name update-server-url nil nil))
+  ([product-name update-server-url watch-key watch-fn]
+    (validate-config! product-name update-server-url)
+    (let [version-agent (agent {:status :in-progress})]
+      (if (and watch-key watch-fn)
+        (add-watch version-agent watch-key watch-fn))
+      (send version-agent
+            (try
+              (check-for-updates! product-name update-server-url)
+              ; This is required to update the state of the agent and trigger
+              ; the agent watches added in the tests
+              {}
+              (catch Exception e
+                (log/warn e "Error occurred while checking for updates")
+                (throw e)))))))
 

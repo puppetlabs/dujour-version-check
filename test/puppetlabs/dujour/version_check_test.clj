@@ -34,26 +34,33 @@
    :body "aaaaaaaaaaaaaaaaaaaaaaaaaa"})
 
 (deftest test-check-for-updates!
-  (with-test-logging
-    (jetty9/with-test-webserver update-available-app port
-                                (check-for-updates! "foo" (format "http://localhost:%s" port))
-                                (is (logged? #"Newer version 9000.0.0 is available!" :info))))
-  (with-test-logging
-    (jetty9/with-test-webserver server-error-app port
-                                (check-for-updates! "foo" (format "http://localhost:%s" port))
-                                (is (logged? #"Could not retrieve update information" :debug)))))
+  (testing "logs the correct version information during a valid version-check"
+    (with-test-logging
+      (jetty9/with-test-webserver update-available-app port
+                                  (check-for-updates! "foo" (format "http://localhost:%s" port))
+                                  (is (logged? #"Newer version 9000.0.0 is available!" :info)))))
+  (testing "logs the correct message during an invalid version-check"
+    (with-test-logging
+      (jetty9/with-test-webserver server-error-app port
+                                  (check-for-updates! "foo" (format "http://localhost:%s" port))
+                                  (is (logged? #"Could not retrieve update information" :debug))))))
 
 (deftest test-version-check
-  (with-test-logging
-    (jetty9/with-test-webserver update-available-app port
-                                (version-check "foo" (format "http://localhost:%s" port))
-                                (Thread/sleep 1000)
-                                (is (logged? #"Newer version 9000.0.0 is available!" :info))))
-  (with-test-logging
-    (jetty9/with-test-webserver server-error-app port
-                                (version-check "foo" (format "http://localhost:%s" port))
-                                (Thread/sleep 100)
-                                (is (logged? #"Could not retrieve update information" :debug)))))
+  (testing "logs the correct version information during a valid version-check"
+    (with-test-logging
+      (jetty9/with-test-webserver
+        update-available-app port
+        (let [watch-key :success-test
+              watch-fn (fn [_ _ _ _]
+                         (is (logged? #"Newer version 9000.0.0 is available!" :info)))]
+          (version-check "foo" (format "http://localhost:%s" port) watch-key watch-fn)))))
+  (testing "logs the correct message during an invalid version-check"
+    (with-test-logging
+      (jetty9/with-test-webserver server-error-app port
+        (let [watch-key :failure-test
+              watch-fn (fn [_ _ _ _]
+                         (is (logged? #"Could not retrieve update information" :debug)))]
+          (version-check "foo" (format "http://localhost:%s" port) watch-key watch-fn))))))
 
 
 
