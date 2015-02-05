@@ -51,20 +51,20 @@
       (jetty9/with-test-webserver
         update-available-app port
         (let [return-val  (promise)
-              callback-fn (fn []
-                            (is (logged? #"Newer version 9000.0.0 is available!" :info))
+              callback-fn (fn [_]
                             (deliver return-val 1))]
           (check-for-updates! {:product-name "foo"} (format "http://localhost:%s" port) callback-fn)
-          @return-val))))
+          @return-val
+          (is (logged? #"Newer version 9000.0.0 is available!" :info))))))
   (testing "logs the correct message during an invalid version-check"
     (with-test-logging
       (jetty9/with-test-webserver server-error-app port
         (let [return-val  (promise)
-              callback-fn (fn []
-                            (is (logged? #"Could not retrieve update information" :debug))
+              callback-fn (fn [_]
                             (deliver return-val 1))]
           (check-for-updates! {:product-name "foo"} (format "http://localhost:%s" port) callback-fn)
-          @return-val)))))
+          @return-val
+          (is (logged? #"Could not retrieve update information" :debug))) ()))))
 
 
 

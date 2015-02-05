@@ -93,16 +93,18 @@
   [request-values update-server-url]
   (log/debugf "Checking for newer versions of %s" (:product-name request-values))
   (let [update-server-url             (or update-server-url default-update-server-url)
-        {:keys [version newer link]}  (try
+        response                      (try
                                         (update-info request-values update-server-url)
                                         (catch Throwable e
                                           (log/debug e (format "Could not retrieve update information (%s)" update-server-url))))
+        {:keys [version newer link]}  response
         link-str (if link
                    (format " Visit %s for details." link)
                    "")
         update-msg (format "Newer version %s is available!%s" version link-str)]
     (when newer
-      (log/info update-msg))))
+      (log/info update-msg))
+    response))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;; Public
@@ -113,13 +115,12 @@
   ([request-values update-server-url callback-fn]
     (validate-config! request-values update-server-url)
     (future
-      (try
-        (version-check request-values update-server-url)
-        (catch Exception e
-          (log/warn e "Error occurred while checking for updates")
-          (throw e))
-        (finally
-          (if-not (nil? callback-fn)
-            (callback-fn)))))
+      (let [server-response (try
+                              (version-check request-values update-server-url)
+                              (catch Exception e
+                                (log/warn e "Error occurred while checking for updates")
+                                (throw e)))]
+        (if-not (nil? callback-fn)
+          (callback-fn server-response))))
     nil))
 
