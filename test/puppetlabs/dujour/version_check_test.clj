@@ -33,34 +33,38 @@
   {:status 500
    :body "aaaaaaaaaaaaaaaaaaaaaaaaaa"})
 
-(deftest test-check-for-updates!
+(deftest test-version-check
   (testing "logs the correct version information during a valid version-check"
     (with-test-logging
       (jetty9/with-test-webserver update-available-app port
-        (check-for-updates! {:product-name "foo"} (format "http://localhost:%s" port))
+        (version-check {:product-name "foo"} (format "http://localhost:%s" port))
         (is (logged? #"Newer version 9000.0.0 is available!" :info)))))
   (testing "logs the correct message during an invalid version-check"
     (with-test-logging
       (jetty9/with-test-webserver server-error-app port
-        (check-for-updates! {:product-name "foo"} (format "http://localhost:%s" port))
+        (version-check {:product-name "foo"} (format "http://localhost:%s" port))
         (is (logged? #"Could not retrieve update information" :debug))))))
 
-(deftest test-version-check
+(deftest test-check-for-updates!
   (testing "logs the correct version information during a valid version-check"
     (with-test-logging
       (jetty9/with-test-webserver
         update-available-app port
-        (let [watch-key :success-test
-              watch-fn (fn [_ _ _ _]
-                         (is (logged? #"Newer version 9000.0.0 is available!" :info)))]
-          (version-check {:product-name "foo"} (format "http://localhost:%s" port) watch-key watch-fn)))))
+        (let [return-val  (promise)
+              callback-fn (fn []
+                            (is (logged? #"Newer version 9000.0.0 is available!" :info))
+                            (deliver return-val 1))]
+          (check-for-updates! {:product-name "foo"} (format "http://localhost:%s" port) callback-fn)
+          @return-val))))
   (testing "logs the correct message during an invalid version-check"
     (with-test-logging
       (jetty9/with-test-webserver server-error-app port
-        (let [watch-key :failure-test
-              watch-fn (fn [_ _ _ _]
-                         (is (logged? #"Could not retrieve update information" :debug)))]
-          (version-check {:product-name "foo"} (format "http://localhost:%s" port) watch-key watch-fn))))))
+        (let [return-val  (promise)
+              callback-fn (fn []
+                            (is (logged? #"Could not retrieve update information" :debug))
+                            (deliver return-val 1))]
+          (check-for-updates! {:product-name "foo"} (format "http://localhost:%s" port) callback-fn)
+          @return-val)))))
 
 
 

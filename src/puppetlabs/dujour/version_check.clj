@@ -87,10 +87,7 @@
   (schema/validate RequestValues request-values)
   (schema/validate (schema/maybe schema/Str) update-server-url))
 
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;;; Public
-
-(defn check-for-updates!
+(defn version-check
   "This will fetch the latest version number and log if the system
   is out of date."
   [request-values update-server-url]
@@ -107,21 +104,22 @@
     (when newer
       (log/info update-msg))))
 
-(defn version-check
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;; Public
+
+(defn check-for-updates!
   ([request-values update-server-url]
-    (version-check request-values update-server-url nil nil))
-  ([request-values update-server-url watch-key watch-fn]
+    (check-for-updates! request-values update-server-url nil))
+  ([request-values update-server-url callback-fn]
     (validate-config! request-values update-server-url)
-    (let [version-agent (agent {:status :in-progress})]
-      (if (and watch-key watch-fn)
-        (add-watch version-agent watch-key watch-fn))
-      (send version-agent
-            (try
-              (check-for-updates! request-values update-server-url)
-              ; This is required to update the state of the agent and trigger
-              ; the agent watches added in the tests
-              {}
-              (catch Exception e
-                (log/warn e "Error occurred while checking for updates")
-                (throw e)))))))
+    (future
+      (try
+        (version-check request-values update-server-url)
+        (catch Exception e
+          (log/warn e "Error occurred while checking for updates")
+          (throw e))
+        (finally
+          (if-not (nil? callback-fn)
+            (callback-fn)))))
+    nil))
 
