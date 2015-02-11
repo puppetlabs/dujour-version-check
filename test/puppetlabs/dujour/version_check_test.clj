@@ -20,7 +20,7 @@
                         :artifact-id "foo"})))))
 
 (defn update-available-app
-  [req]
+  [_]
   {:status 200
    :body (json/generate-string {:newer true
                                 :link "http://foo.com"
@@ -29,7 +29,7 @@
                                 :version "9000.0.0"})})
 
 (defn server-error-app
-  [req]
+  [_]
   {:status 500
    :body "aaaaaaaaaaaaaaaaaaaaaaaaaa"})
 
@@ -51,19 +51,20 @@
       (jetty9/with-test-webserver
         update-available-app port
         (let [return-val  (promise)
-              callback-fn (fn [_]
-                            (deliver return-val 1))]
+              callback-fn (fn [resp]
+                            (deliver return-val resp))]
           (check-for-updates! {:product-name "foo"} (format "http://localhost:%s" port) callback-fn)
-          @return-val
+          (is (:version @return-val) "9000.0.0")
+          (is (:newer @return-val))
           (is (logged? #"Newer version 9000.0.0 is available!" :info))))))
   (testing "logs the correct message during an invalid version-check"
     (with-test-logging
       (jetty9/with-test-webserver server-error-app port
         (let [return-val  (promise)
-              callback-fn (fn [_]
-                            (deliver return-val 1))]
+              callback-fn (fn [resp]
+                            (deliver return-val resp))]
           (check-for-updates! {:product-name "foo"} (format "http://localhost:%s" port) callback-fn)
-          @return-val
+          (is (nil? @return-val))
           (is (logged? #"Could not retrieve update information" :debug))) ()))))
 
 

@@ -93,11 +93,10 @@
   [request-values update-server-url]
   (log/debugf "Checking for newer versions of %s" (:product-name request-values))
   (let [update-server-url             (or update-server-url default-update-server-url)
-        response                      (try
-                                        (update-info request-values update-server-url)
-                                        (catch Throwable e
-                                          (log/debug e (format "Could not retrieve update information (%s)" update-server-url))))
-        {:keys [version newer link]}  response
+        {:keys [version newer link] :as response} (try
+                                                    (update-info request-values update-server-url)
+                                                    (catch Throwable e
+                                                      (log/debug e (format "Could not retrieve update information (%s)" update-server-url))))
         link-str (if link
                    (format " Visit %s for details." link)
                    "")
