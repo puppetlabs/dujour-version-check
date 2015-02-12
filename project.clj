@@ -14,6 +14,11 @@
                  [trptcolin/versioneer "0.1.0"]
                  [slingshot "0.10.3"]]
 
+  :deploy-repositories [["releases" {:url "https://clojars.org/repo"
+                                     :username :env/clojars_jenkins_username
+                                     :password :env/clojars_jenkins_password
+                                     :sign-releases false}]]
+
   :profiles {:dev {:dependencies [[puppetlabs/trapperkeeper ~tk-version :classifier "test" :scope "test"]
                                   [puppetlabs/kitchensink ~ks-version :classifier "test" :scope "test"]
                                   [puppetlabs/trapperkeeper-webserver-jetty9 ~tk-jetty-version]
