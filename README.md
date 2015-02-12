@@ -1,5 +1,7 @@
 # version-check-service
 
+[![Build Status](https://travis-ci.org/puppetlabs/dujour-version-check.png?branch=master)](https://travis-ci.org/puppetlabs/dujour-version-check)
+
 This library allows you to perform version checks with dujour. To use this in your project,
 add the following to your `project.clj` file:
 
