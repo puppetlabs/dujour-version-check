@@ -65,7 +65,16 @@
                             (deliver return-val resp))]
           (check-for-updates! {:product-name "foo"} (format "http://localhost:%s" port) callback-fn)
           (is (nil? @return-val))
-          (is (logged? #"Could not retrieve update information" :debug))) ()))))
+          (is (logged? #"Could not retrieve update information" :debug)))))))
+
+(deftest test-get-version-string
+  (testing "get-version-string returns the correct version string"
+    (with-test-logging
+      (jetty9/with-test-webserver
+        update-available-app port
+        (let [version-string (get-version-string "trapperkeeper-webserver-jetty9" "puppetlabs")]
+          (is (not (.isEmpty version-string)))
+          (is (re-matches #"^\d+.\d+.\d+" version-string)))))))
 
 
 
