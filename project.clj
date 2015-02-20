@@ -9,7 +9,7 @@
    :password      :env/nexus_jenkins_password
    :sign-releases false})
 
-(defproject puppetlabs/dujour-version-check "0.1.0-SNAPSHOT"
+(defproject puppetlabs/dujour-version-check "0.1.0"
   :description "Dujour Version Check library"
 
   :dependencies [[org.clojure/clojure "1.6.0"]
