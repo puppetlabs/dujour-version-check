@@ -6,7 +6,7 @@ This library allows you to perform version checks with dujour. To use this in yo
 add the following to your `project.clj` file:
 
 ```
-[puppetlabs/dujour-version-check "0.1.0"]
+[puppetlabs/dujour-version-check "0.1.1"]
 
 ```
 
