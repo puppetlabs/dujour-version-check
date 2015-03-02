@@ -2,13 +2,6 @@
 (def tk-version "1.0.0")
 (def tk-jetty-version "1.0.0")
 
-(defn deploy-info
-  [url]
-  {:url           url
-   :username      :env/nexus_jenkins_username
-   :password      :env/nexus_jenkins_password
-   :sign-releases false})
-
 (defproject puppetlabs/dujour-version-check "0.1.2-SNAPSHOT"
   :description "Dujour Version Check library"
 
@@ -21,11 +14,10 @@
                  [trptcolin/versioneer "0.1.0"]
                  [slingshot "0.10.3"]]
 
-  :repositories [["releases" "http://nexus.delivery.puppetlabs.net/content/repositories/releases/"]
-                 ["snapshots" "http://nexus.delivery.puppetlabs.net/content/repositories/snapshots/"]]
-
-  :deploy-repositories [["releases" ~(deploy-info "http://nexus.delivery.puppetlabs.net/content/repositories/releases/")]
-                        ["snapshots" ~(deploy-info "http://nexus.delivery.puppetlabs.net/content/repositories/snapshots/")]]
+  :deploy-repositories [["releases" {:url "https://clojars.org/repo"
+                                     :username :env/clojars_jenkins_username
+                                     :password :env/clojars_jenkins_password
+                                     :sign-releases false}]]
 
   :profiles {:dev {:dependencies [[puppetlabs/trapperkeeper ~tk-version :classifier "test" :scope "test"]
                                   [puppetlabs/kitchensink ~ks-version :classifier "test" :scope "test"]
