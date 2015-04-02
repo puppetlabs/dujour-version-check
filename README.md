@@ -10,9 +10,10 @@ add the following to your `project.clj` file:
 
 ```
 
-Then, call the `version-check` function. This function takes two arguments,
-`product-name` and `update-server-url`. `update-server-url` should be a string
-containing the URL of the update server. `product-name` can either be a string
+Then, call the `check-for-updates!` function. This function takes two arguments,
+`request-values` and `update-server-url`. `update-server-url` should be a string
+containing the URL of the update server. `request-values` is a map that currently only
+supports a single key, `:product-name`. The value contained at this key can either be a string
 containing the artifact-id or a map with the following schema:
 
 ```clj
@@ -22,6 +23,11 @@ containing the artifact-id or a map with the following schema:
 
 If only the artifact id is provided, the group id will default to
 `"puppetlabs.packages"`.
+
+This library provides one other public API function, `get-version-string`. This function
+takes one argument, `product-name`, which should be the artifact id as a string. It
+optionally takes one more argument, `group-id`, which should be the group-id of the
+desired artifact as a string.
 
 ## License
 
