@@ -57,6 +57,19 @@
           (is (:version @return-val) "9000.0.0")
           (is (:newer @return-val))
           (is (logged? #"Newer version 9000.0.0 is available!" :info))))))
+  (testing "accepts arbitrary parameters in the request-values map"
+    (with-test-logging
+      (jetty9/with-test-webserver
+        update-available-app port
+        (let [return-val  (promise)
+              callback-fn (fn [resp]
+                            (deliver return-val resp))]
+          (check-for-updates! {:product-name "foo"
+                               :database-version "9.4"}
+                              (format "http://localhost:%s" port) callback-fn)
+          (is (:version @return-val) "9000.0.0")
+          (is (:newer @return-val))
+          (is (logged? #"Newer version 9000.0.0 is available!" :info))))))
   (testing "logs the correct message during an invalid version-check"
     (with-test-logging
       (jetty9/with-test-webserver server-error-app port
