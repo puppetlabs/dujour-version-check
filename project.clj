@@ -8,7 +8,7 @@
   :dependencies [[org.clojure/clojure "1.6.0"]
                  [org.clojure/tools.logging "0.3.1"]
                  [prismatic/schema "0.2.2"]
-                 [puppetlabs/http-client "0.4.0"]
+                 [puppetlabs/http-client "0.4.4"]
                  [ring/ring-codec "1.0.0"]
                  [cheshire "5.3.1"]
                  [trptcolin/versioneer "0.1.0"]
