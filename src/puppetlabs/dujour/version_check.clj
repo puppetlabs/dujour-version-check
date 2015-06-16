@@ -26,7 +26,8 @@
     map?    ProductCoords))
 
 (def RequestValues
-  {:product-name ProductName})
+  {:product-name ProductName
+   schema/Any schema/Any})
 
 (def UpdateInfo
   {:version schema/Str
@@ -69,7 +70,10 @@
         {:keys [group-id artifact-id]} (get-coords product-name)
         current-version (version group-id artifact-id)
         version-data {:version current-version}
-        query-string (ring-codec/form-encode version-data)
+        query-string (-> request-values
+                         (dissoc :product-name)
+                         (merge version-data)
+                         ring-codec/form-encode)
         url (format "%s?product=%s&group=%s&%s" update-server-url artifact-id group-id query-string)
         {:keys [status body] :as resp} (client/get url
                                                    {:headers {"Accept" "application/json"}
