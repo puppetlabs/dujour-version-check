@@ -5,7 +5,9 @@
             [puppetlabs.http.client.sync :as client]
             [cheshire.core :as json]
             [trptcolin.versioneer.core :as version]
-            [slingshot.slingshot :as sling]))
+            [slingshot.slingshot :as sling]
+            [puppetlabs.kitchensink.core :as ks]
+            [clojure.set :as set]))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;; Constants
@@ -26,13 +28,15 @@
     map?    ProductCoords))
 
 (def RequestValues
-  {:product-name ProductName
+  {(schema/optional-key :certname) schema/Str
+   (schema/optional-key :cacert) schema/Str
+   :product-name ProductName
    schema/Any schema/Any})
 
 (def UpdateInfo
   {:version schema/Str
-   :newer   schema/Bool
-   :link    schema/Str
+   :newer schema/Bool
+   :link schema/Str
    :product schema/Str
    (schema/optional-key :message) schema/Str})
 
@@ -91,7 +95,7 @@
   (schema/validate RequestValues request-values)
   (schema/validate (schema/maybe schema/Str) update-server-url))
 
-(defn version-check
+(defn- version-check
   "This will fetch the latest version number and log if the system
   is out of date."
   [request-values update-server-url]
@@ -109,6 +113,14 @@
       (log/info update-msg))
     response))
 
+(defn- get-hash
+  "Returns a SHA-512 encoded value of the given string."
+  [data]
+  (let [md (. java.security.MessageDigest getInstance "sha-512")]
+    (.update md (.getBytes data))
+    (let [bytes (.digest md)]
+      (reduce #(str %1 (format "%02x" %2)) "" bytes))))
+
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;; Public
 
@@ -118,8 +130,12 @@
   ([request-values update-server-url callback-fn]
     (validate-config! request-values update-server-url)
     (future
-      (let [server-response (try
-                              (version-check request-values update-server-url)
+      (let [key-map (and [:certname :cacert] (keys request-values))
+            arguments (-> (ks/mapvals get-hash key-map request-values)
+                          (set/rename-keys {:certname :host-id
+                                            :cacert :site-id}))
+            server-response (try
+                              (version-check arguments update-server-url)
                               (catch Exception e
                                 (log/warn e "Error occurred while checking for updates")
                                 (throw e)))]

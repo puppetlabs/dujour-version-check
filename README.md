@@ -24,6 +24,11 @@ containing the artifact-id or a map with the following schema:
 If only the artifact id is provided, the group id will default to
 `"puppetlabs.packages"`.
 
+The request map can also accept `:certname` and `:cacert` strings, which
+can be used to uniquely identify a user. These values will be SHA-512
+hashed and sent as `site-id` and `host-id`, respectively, before being
+sent to the server.
+
 This library provides one other public API function, `get-version-string`. This function
 takes one argument, `product-name`, which should be the artifact id as a string. It
 optionally takes one more argument, `group-id`, which should be the group-id of the
