@@ -5,7 +5,9 @@
             [puppetlabs.http.client.sync :as client]
             [cheshire.core :as json]
             [trptcolin.versioneer.core :as version]
-            [slingshot.slingshot :as sling]))
+            [slingshot.slingshot :as sling]
+            [puppetlabs.kitchensink.core :as ks]
+            [clojure.set :as set]))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;; Constants
@@ -27,6 +29,7 @@
 
 (def RequestValues
   {(schema/optional-key :certname) schema/Str
+   (schema/optional-key :cacert) schema/Str
    :product-name ProductName
    schema/Any schema/Any})
 
@@ -127,12 +130,12 @@
   ([request-values update-server-url callback-fn]
     (validate-config! request-values update-server-url)
     (future
-      (let [certname (:certname request-values)
-            request-values (if-not (nil? certname)
-                             (assoc (dissoc request-values :certname) :host-id (get-hash (:certname request-values)))
-                             request-values)
+      (let [key-map (and [:certname :cacert] (keys request-values))
+            arguments (-> (ks/mapvals get-hash key-map request-values)
+                          (set/rename-keys {:certname :host-id
+                                            :cacert :site-id}))
             server-response (try
-                              (version-check request-values update-server-url)
+                              (version-check arguments update-server-url)
                               (catch Exception e
                                 (log/warn e "Error occurred while checking for updates")
                                 (throw e)))]

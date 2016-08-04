@@ -32,11 +32,17 @@
 (defn update-available-app
   [req]
   (let [params (parse-params (:query-string req) "UTF-8")
-        certname (params "host-id")]
+        host-id (params "host-id")
+        site-id (params "site-id")
+        certname (params "certname")
+        cacert (params "cacert")]
     {:status 200
      :body (json/generate-string {:newer true
                                   :link "http://foo.com"
-                                  :message (or certname "")
+                                  :message (json/generate-string {:host-id host-id
+                                                                  :site-id site-id
+                                                                  :certname certname
+                                                                  :cacert cacert})
                                   :product "foo"
                                   :version "9000.0.0"})}))
 
@@ -49,12 +55,14 @@
   (testing "logs the correct version information during a valid version-check"
     (with-test-logging
       (jetty9/with-test-webserver update-available-app port
-        (version-check {:certname "some-certname" :product-name "foo"} (format "http://localhost:%s" port))
+        (version-check {:certname "some-certname" :cacert "some-cacert" :product-name "foo"}
+                       (format "http://localhost:%s" port))
         (is (logged? #"Newer version 9000.0.0 is available!" :info)))))
   (testing "logs the correct message during an invalid version-check"
     (with-test-logging
       (jetty9/with-test-webserver server-error-app port
-        (version-check {:certname "some-certname" :product-name "foo"} (format "http://localhost:%s" port))
+        (version-check {:certname "some-certname" :cacert "some-cacert" :product-name "foo"}
+                       (format "http://localhost:%s" port))
         (is (logged? #"Could not retrieve update information" :debug))))))
 
 (deftest test-check-for-updates!
@@ -65,7 +73,8 @@
         (let [return-val  (promise)
               callback-fn (fn [resp]
                             (deliver return-val resp))]
-          (check-for-updates! {:certname "some-certname" :product-name "foo"} (format "http://localhost:%s" port) callback-fn)
+          (check-for-updates! {:certname "some-certname" :cacert "some-cacert" :product-name "foo"}
+                              (format "http://localhost:%s" port) callback-fn)
           (is (= (:version @return-val) "9000.0.0"))
           (is (:newer @return-val))
           (is (logged? #"Newer version 9000.0.0 is available!" :info))))))
@@ -77,6 +86,7 @@
               callback-fn (fn [resp]
                             (deliver return-val resp))]
           (check-for-updates! {:certname "some-certname"
+                               :cacert "some-cacert"
                                :product-name "foo"
                                :database-version "9.4"}
                               (format "http://localhost:%s" port) callback-fn)
@@ -89,21 +99,27 @@
         (let [return-val  (promise)
               callback-fn (fn [resp]
                             (deliver return-val resp))]
-          (check-for-updates! {:certname "some-certname" :product-name "foo"} (format "http://localhost:%s" port) callback-fn)
+          (check-for-updates! {:certname "some-certname" :cacert "some-cacert" :product-name "foo"}
+                              (format "http://localhost:%s" port) callback-fn)
           (is (nil? @return-val))
           (is (logged? #"Could not retrieve update information" :debug))))))
-  (testing "does not send the actual certname"
+  (testing "does not send the actual certname or cacert"
     (with-test-logging
       (jetty9/with-test-webserver update-available-app port
         (let [return-val (promise)
               callback-fn (fn [resp] (deliver return-val resp))
-              certname "some-certname"]
+              certname "some-certname"
+              cacert "some-cacert"]
           (check-for-updates! {:certname certname
+                               :cacert cacert
                                :product-name "foo"
                                :database-version "9.4"}
                               (format "http://localhost:%s" port) callback-fn)
-          (is (= (:message @return-val) (get-hash certname)))))))
-  (testing "allows omitting certname for backwards compatibility"
+          (is (= ((json/parse-string (:message @return-val)) "host-id") (get-hash certname)))
+          (is (= ((json/parse-string (:message @return-val)) "site-id") (get-hash cacert)))
+          (is (nil? ((json/parse-string (:message @return-val)) "certname")))
+          (is (nil? ((json/parse-string (:message @return-val)) "cacert")))))))
+  (testing "allows omitting certname and cacert for backwards compatibility"
     (with-test-logging
       (jetty9/with-test-webserver update-available-app port
         (let [return-val (promise)
