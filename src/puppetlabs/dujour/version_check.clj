@@ -56,8 +56,10 @@
 
 (schema/defn version* :- schema/Str
   "Get the version number of this installation."
-  [group-id artifact-id]
-  (version/get-version group-id artifact-id))
+  ([group-id artifact-id]
+    (version* group-id artifact-id nil))
+  ([group-id artifact-id default]
+    (version/get-version group-id artifact-id default)))
 
 (def version
   "Get the version number of this installation."
@@ -72,7 +74,9 @@
    update-server-url :- schema/Str]
   (let [product-name (:product-name request-values)
         {:keys [group-id artifact-id]} (get-coords product-name)
-        current-version (version group-id artifact-id)
+        ;current-version (version group-id artifact-id (str (or (:version request-values) "")))
+        current-version (str (or (:version request-values) (version group-id artifact-id "")))
+        _ (log/errorf "current-version = %s" current-version)
         version-data {:version current-version}
         query-string (-> request-values
                          (dissoc :product-name)
@@ -100,7 +104,7 @@
   is out of date."
   [request-values update-server-url]
   (log/debugf "Checking for newer versions of %s" (:product-name request-values))
-  (let [update-server-url             (or update-server-url default-update-server-url)
+  (let [update-server-url (or update-server-url default-update-server-url)
         {:keys [version newer link] :as response} (try
                                                     (update-info request-values update-server-url)
                                                     (catch Throwable e
@@ -130,8 +134,8 @@
   ([request-values update-server-url callback-fn]
     (validate-config! request-values update-server-url)
     (future
-      (let [key-map (and [:certname :cacert] (keys request-values))
-            arguments (-> (ks/mapvals get-hash key-map request-values)
+      (let [keys-present-to-hash (vec (keys (select-keys request-values [:cacert :certname])))
+            arguments (-> (ks/mapvals get-hash keys-present-to-hash request-values)
                           (set/rename-keys {:certname :host-id
                                             :cacert :site-id}))
             server-response (try
