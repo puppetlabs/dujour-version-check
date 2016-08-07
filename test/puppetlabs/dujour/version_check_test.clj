@@ -139,6 +139,18 @@
           (check-for-updates! {:product-name "foo"
                                :database-version "9.4"}
             (format "http://localhost:%s" port) callback-fn)
+          (is (= (:version @return-val) "9000.0.0"))))))
+
+  (testing "returns a future that can be dereferenced"
+    (with-test-logging
+      (jetty9/with-test-webserver return-all-as-message-app port
+        (let [return-val (promise)
+              callback-fn (fn [resp] (deliver return-val resp) "return string")
+              future (check-for-updates! {:product-name "foo"
+                                          :database-version "9.4"}
+                                         (format "http://localhost:%s" port) callback-fn)
+              result @future]
+          (is (= "return string" result))
           (is (= (:version @return-val) "9000.0.0")))))))
 
 (deftest test-get-version-string

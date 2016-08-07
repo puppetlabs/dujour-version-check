@@ -144,8 +144,7 @@
                                 (log/warn e "Error occurred while checking for updates")
                                 (throw e)))]
         (if-not (nil? callback-fn)
-          (callback-fn server-response))))
-    nil))
+          (callback-fn server-response))))))
 
 (defn get-version-string
   ([product-name]
