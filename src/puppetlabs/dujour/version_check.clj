@@ -76,7 +76,6 @@
         {:keys [group-id artifact-id]} (get-coords product-name)
         ;current-version (version group-id artifact-id (str (or (:version request-values) "")))
         current-version (str (or (:version request-values) (version group-id artifact-id "")))
-        _ (log/errorf "current-version = %s" current-version)
         version-data {:version current-version}
         query-string (-> request-values
                          (dissoc :product-name)
