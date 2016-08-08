@@ -6,8 +6,7 @@
             [schema.test :as schema-test]
             [cheshire.core :as json]
             [ring.util.codec :as codec]
-            [puppetlabs.kitchensink.core :as ks]
-            [clojure.tools.logging :as log]))
+            [puppetlabs.kitchensink.core :as ks]))
 
 (use-fixtures :once schema-test/validate-schemas)
 
@@ -127,7 +126,6 @@
           (check-for-updates! {:product-name "foo"
                                :version "9.4"}
                               (format "http://localhost:%s" port) callback-fn)
-          (log/errorf "return value = %s" @return-val)
           (is (= ((json/parse-string (:message @return-val)) "version") "9.4"))
           (is (= ((json/parse-string (:message @return-val)) "product") "foo"))))))
 
