@@ -2,7 +2,7 @@
 (def tk-version "1.0.0")
 (def tk-jetty-version "1.0.0")
 
-(defproject puppetlabs/dujour-version-check "0.1.5"
+(defproject puppetlabs/dujour-version-check "0.1.6-SNAPSHOT"
   :description "Dujour Version Check library"
 
   :dependencies [[org.clojure/clojure "1.6.0"]
