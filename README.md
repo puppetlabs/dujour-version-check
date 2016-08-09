@@ -1,6 +1,7 @@
 # version-check-service
 
-[![Build Status](https://travis-ci.org/puppetlabs/dujour-version-check.png?branch=master)](https://travis-ci.org/puppetlabs/dujour-version-check)
+[![Build Status](https://travis-ci.org/puppetlabs/dujour-version-check.png?branch=master)](https://travis-ci.org/puppetlabs/dujour-version-check) 
+[![Clojars Project](https://img.shields.io/clojars/v/puppetlabs/dujour-version-check.svg)](https://clojars.org/puppetlabs/dujour-version-check)
 
 This library allows you to perform version checks with dujour. To use this in your project,
 add the following to your `project.clj` file:
@@ -9,6 +10,8 @@ add the following to your `project.clj` file:
 [puppetlabs/dujour-version-check "0.1.2"]
 
 ```
+
+_Note:_ The latest version number of this library can be found above
 
 Then, call the `check-for-updates!` function. This function takes two arguments,
 `request-values` and `update-server-url`. `update-server-url` should be a string
