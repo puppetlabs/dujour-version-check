@@ -30,7 +30,11 @@
 
 (defn return-all-as-message-app
   [req]
-  (let [params (parse-params (:query-string req) "UTF-8")]
+  (let [query-string (:query-string req)
+        get-params (if query-string (parse-params query-string "UTF-8"))
+        body (:body req)
+        post-params (if body (json/parse-string (slurp body)))
+        params (if (nil? post-params) get-params post-params)]
     {:status 200
      :body (json/generate-string {:newer true
                                   :link "http://foo.com"
@@ -149,7 +153,23 @@
                                          (format "http://localhost:%s" port) callback-fn)
               result @future]
           (is (= "return string" result))
-          (is (= (:version @return-val) "9000.0.0")))))))
+          (is (= (:version @return-val) "9000.0.0"))))))
+
+  (testing "fails normally when connection is refused"
+    (with-test-logging
+      (jetty9/with-test-webserver return-all-as-message-app port
+        (let [result (check-for-updates! {:product-name "foo"
+                                          :database-version "9.4"}
+                                         (format "http://localhost:%s" 1) nil)]
+          (is (nil? @result))))))
+
+  (testing "fails normally with a bad reporting URL port"
+    (with-test-logging
+      (jetty9/with-test-webserver return-all-as-message-app port
+        (let [result (check-for-updates! {:product-name "foo"
+                                          :database-version "9.4"}
+                                         (format "http://not-a-real-domain-for-sure:%s" 1) nil)]
+          (is (nil? @result)))))))
 
 (deftest test-get-version-string
   (testing "get-version-string returns the correct version string"

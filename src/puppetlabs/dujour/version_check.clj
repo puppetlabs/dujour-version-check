@@ -40,6 +40,11 @@
    :product schema/Str
    (schema/optional-key :message) schema/Str})
 
+(def RequestResult
+  {:status schema/Int
+   :body schema/Any
+   :resp schema/Any})
+
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;; Private
 
@@ -65,28 +70,42 @@
   "Get the version number of this installation."
   (memoize version*))
 
-(schema/defn ^:always-validate update-info :- (schema/maybe UpdateInfo)
-  "Make a request to the puppetlabs server to determine the latest available
-  version. Returns the JSON object received from the server, which
-  is expected to be a map containing keys `:version`, `:newer`, and `:link`.
-  Returns `nil` if the request does not succeed for some reason."
+(schema/defn ^:always-validate update-info-post :- RequestResult
+  "Make a POST request to the puppetlabs server to determine the latest available
+  version."
   [request-values :- RequestValues
    update-server-url :- schema/Str]
   (let [product-name (:product-name request-values)
         {:keys [group-id artifact-id]} (get-coords product-name)
-        ;current-version (version group-id artifact-id (str (or (:version request-values) "")))
         current-version (str (or (:version request-values) (version group-id artifact-id "")))
         version-data {:version current-version}
-        query-string (-> request-values
+        request-body (-> request-values
                          (dissoc :product-name)
+                         (assoc "product" artifact-id)
+                         (assoc "group" group-id)
                          (merge version-data)
-                         ring-codec/form-encode)
-        url (format "%s?product=%s&group=%s&%s" update-server-url artifact-id group-id query-string)
-        {:keys [status body] :as resp} (client/get url
-                                                   {:headers {"Accept" "application/json"}
-                                                    :as :text})]
-    (if (= status 200)
+                         json/generate-string)
+        url update-server-url
+        {:keys [status body] :as resp} (client/post url
+                                         {:headers {"Accept" "application/json"}
+                                          :body request-body
+                                          :as :text})]
+      {:status status :body body :resp resp}))
+
+(schema/defn ^:always-validate update-info :- (schema/maybe UpdateInfo)
+  "Make a request to the puppetlabs server to determine the latest available
+  version. Attempts a POST request before falling back to a GET request.
+  Returns the JSON object received from the server, which is expected to be
+  a map containing keys `:version`, `:newer`, and `:link`. Returns `nil` if
+  the request does not succeed for some reason."
+  [request-values :- RequestValues
+   update-server-url :- schema/Str]
+  (let [{:keys [status body resp]} (update-info-post request-values update-server-url)]
+    (cond
+      (= status 200)
       (json/parse-string body true)
+
+      :else
       (sling/throw+ {:type ::update-request-failed
                      :message resp}))))
 
@@ -106,7 +125,7 @@
   (let [update-server-url (or update-server-url default-update-server-url)
         {:keys [version newer link] :as response} (try
                                                     (update-info request-values update-server-url)
-                                                    (catch Throwable e
+                                                    (catch Exception e
                                                       (log/debug e (format "Could not retrieve update information (%s)" update-server-url))))
         link-str (if link
                    (format " Visit %s for details." link)
