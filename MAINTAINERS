@@ -1,0 +1,23 @@
+{
+  "version": 1,
+  "file_format": "This MAINTAINERS file format is described at https://github.com/puppetlabs/maintainers",
+  "issues": "https://tickets.puppetlabs.com/browse/PE",
+  "people": [
+    {
+      "github": "briancain",
+      "email": "brian.cain@puppet.com"
+    },
+    {
+      "github": "smcclellan",
+      "email": "scott.mcclellan@puppet.com"
+    },
+    {
+      "github": "pcarlisle",
+      "email": "patrick@puppet.com"
+    },
+    {
+      "github": "vine77",
+      "email": "nathan.ward@puppet.com"
+    }
+  ]
+}
