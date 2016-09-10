@@ -81,6 +81,7 @@
         version-data {:version current-version}
         request-body (-> request-values
                          (dissoc :product-name)
+                         (set/rename-keys {:agent-os :agent_os})
                          (assoc "product" artifact-id)
                          (assoc "group" group-id)
                          (merge version-data)
