@@ -122,6 +122,51 @@
           (is (nil? (message "certname")))
           (is (nil? (message "cacert")))))))
 
+  (testing "sends agent_os instead of agent-os"
+    (with-test-logging
+      (jetty9/with-test-webserver return-all-as-message-app port
+        (let [return-val (promise)
+              callback-fn (fn [resp] (deliver return-val resp))
+              agent-os {"debian" 15 "centos" 5}
+              _ (check-for-updates! {:agent-os agent-os
+                                     :product-name     "foo"
+                                     :database-version "9.4"}
+                                    (format "http://localhost:%s" port) callback-fn)
+              message (json/parse-string (:message @return-val))]
+          (is (= (message "agent_os") agent-os))
+          (is (nil? (message "agent-os")))))))
+
+  (testing "doesn't clobber agent_os"
+    (with-test-logging
+      (jetty9/with-test-webserver return-all-as-message-app port
+        (let [return-val (promise)
+              callback-fn (fn [resp] (deliver return-val resp))
+              agent_os {"debian" 15 "centos" 5}
+              _ (check-for-updates! {:agent_os agent_os
+                                     :product-name     "foo"
+                                     :database-version "9.4"}
+                                    (format "http://localhost:%s" port) callback-fn)
+              message (json/parse-string (:message @return-val))]
+          (is (= (message "agent_os") agent_os))
+          (is (nil? (message "agent-os")))))))
+
+  (testing "only submits agent_os if both agent-os and agent_os are present"
+    (with-test-logging
+      (jetty9/with-test-webserver return-all-as-message-app port
+        (let [return-val (promise)
+              callback-fn (fn [resp] (deliver return-val resp))
+              agent_os {"debian" 15 "centos" 5}
+              agent-os {"debian" 20 "centos" 10}
+              _ (check-for-updates! {:agent_os agent_os
+                                     :agent-os agent-os
+                                     :product-name     "foo"
+                                     :database-version "9.4"}
+                                    (format "http://localhost:%s" port) callback-fn)
+              message (json/parse-string (:message @return-val))]
+          ; The original `agent_os` should be clobbered in this case.
+          (is (= (message "agent_os") agent-os))
+          (is (nil? (message "agent-os")))))))
+
   (testing "sends the version number"
     (with-test-logging
       (jetty9/with-test-webserver return-all-as-message-app port
