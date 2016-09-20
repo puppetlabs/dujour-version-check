@@ -136,6 +136,20 @@
           (is (= (message "agent_os") agent-os))
           (is (nil? (message "agent-os")))))))
 
+  (testing "sends puppet_agent_versions instead of puppet-agent-versions"
+    (with-test-logging
+      (jetty9/with-test-webserver return-all-as-message-app port
+        (let [return-val (promise)
+              callback-fn (fn [resp] (deliver return-val resp))
+              puppet-agent-versions {"1.6.7" 15 "1.4.5" 5}
+              _ (check-for-updates! {:puppet-agent-versions puppet-agent-versions
+                                     :product-name     "foo"
+                                     :database-version "9.4"}
+                                    (format "http://localhost:%s" port) callback-fn)
+              message (json/parse-string (:message @return-val))]
+          (is (= (message "puppet_agent_versions") puppet-agent-versions))
+          (is (nil? (message "puppet-agent-versions")))))))
+
   (testing "doesn't clobber agent_os"
     (with-test-logging
       (jetty9/with-test-webserver return-all-as-message-app port

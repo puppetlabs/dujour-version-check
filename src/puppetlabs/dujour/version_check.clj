@@ -81,7 +81,8 @@
         version-data {:version current-version}
         request-body (-> request-values
                          (dissoc :product-name)
-                         (set/rename-keys {:agent-os :agent_os})
+                         (set/rename-keys {:agent-os :agent_os
+                                           :puppet-agent-versions :puppet_agent_versions})
                          (assoc "product" artifact-id)
                          (assoc "group" group-id)
                          (merge version-data)
@@ -163,7 +164,8 @@
                                 (log/warn e "Error occurred while checking for updates")
                                 (throw e)))]
         (if-not (nil? callback-fn)
-          (callback-fn server-response))))))
+          (callback-fn server-response)
+          server-response)))))
 
 (defn get-version-string
   ([product-name]
