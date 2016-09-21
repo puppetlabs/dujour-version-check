@@ -10,7 +10,6 @@
 
 (use-fixtures :once schema-test/validate-schemas)
 
-(def get-hash #'puppetlabs.dujour.version-check/get-hash)
 (def version-check #'puppetlabs.dujour.version-check/version-check)
 
 (deftest test-get-coords
