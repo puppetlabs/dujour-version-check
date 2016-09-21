@@ -137,7 +137,7 @@
       (log/info update-msg))
     response))
 
-(defn- get-hash
+(defn get-hash
   "Returns a SHA-512 encoded value of the given string."
   [data]
   (let [md (. java.security.MessageDigest getInstance "sha-512")]
