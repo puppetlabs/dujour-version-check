@@ -1,12 +1,13 @@
 (ns puppetlabs.dujour.version-check-test
-  (:require [clojure.test :refer :all]
-            [puppetlabs.trapperkeeper.testutils.webserver :as jetty9]
-            [puppetlabs.trapperkeeper.testutils.logging :refer [with-test-logging]]
+  (:require [cheshire.core :as json]
+            [clojure.test :refer :all]
             [puppetlabs.dujour.version-check :refer :all]
-            [schema.test :as schema-test]
-            [cheshire.core :as json]
+            [puppetlabs.kitchensink.core :as ks]
+            [puppetlabs.trapperkeeper.testutils.logging :refer [with-test-logging]]
+            [puppetlabs.trapperkeeper.testutils.webserver :as jetty9]
             [ring.util.codec :as codec]
-            [puppetlabs.kitchensink.core :as ks]))
+            [schema.test :as schema-test]
+            [slingshot.test]))
 
 (use-fixtures :once schema-test/validate-schemas)
 
@@ -46,76 +47,45 @@
   {:status 500
    :body "aaaaaaaaaaaaaaaaaaaaaaaaaa"})
 
-(deftest test-version-check
-  (testing "logs the correct version information during a valid version-check"
-    (with-test-logging
-      (jetty9/with-test-webserver return-all-as-message-app port
-        (version-check {:certname "some-certname" :cacert "some-cacert" :product-name "foo"}
-                       (format "http://localhost:%s" port))
-        (is (logged? #"Newer version 9000.0.0 is available!" :info)))))
-
-  (testing "logs the correct message during an invalid version-check"
-    (with-test-logging
-      (jetty9/with-test-webserver server-error-app port
-        (version-check {:certname "some-certname" :cacert "some-cacert" :product-name "foo"}
-                       (format "http://localhost:%s" port))
-        (is (logged? #"Could not retrieve update information" :debug))))))
-
-(deftest test-check-for-updates!
+(deftest test-check-for-update
   (testing "logs the correct version information during a valid version-check"
     (with-test-logging
       (jetty9/with-test-webserver
         return-all-as-message-app port
-        (let [return-val  (promise)
-              callback-fn (fn [resp]
-                            (deliver return-val resp))]
-          (check-for-updates! {:certname "some-certname" :cacert "some-cacert" :product-name "foo"}
-                              (format "http://localhost:%s" port) callback-fn)
-          (is (= (:version @return-val) "9000.0.0"))
-          (is (:newer @return-val))
+        (let [return-val
+              (check-for-update {:certname "some-certname" :cacert "some-cacert" :product-name "foo"}
+                                (format "http://localhost:%s" port))]
+          (is (= (:version return-val) "9000.0.0"))
+          (is (:newer return-val))
           (is (logged? #"Newer version 9000.0.0 is available!" :info))))))
 
-  (testing "accepts arbitrary parameters in the request-values map"
+  (testing "filters out extra parameters"
     (with-test-logging
       (jetty9/with-test-webserver
         return-all-as-message-app port
-        (let [return-val  (promise)
-              callback-fn (fn [resp]
-                            (deliver return-val resp))]
-          (check-for-updates! {:certname "some-certname"
-                               :cacert "some-cacert"
-                               :product-name "foo"
-                               :database-version "9.4"}
-                              (format "http://localhost:%s" port) callback-fn)
-          (is (= (:version @return-val) "9000.0.0"))
-          (is (= ((json/parse-string (:message @return-val)) "database-version") "9.4"))
-          (is (:newer @return-val))
-          (is (logged? #"Newer version 9000.0.0 is available!" :info))))))
+        (let [return-val
+              (check-for-update {:certname "some-certname"
+                                 :cacert "some-cacert"
+                                 :product-name "foo"
+                                 :database-version "9.4"}
+                                (format "http://localhost:%s" port))]
+          (is (= (:version return-val) "9000.0.0"))
+          (is (= ((json/parse-string (:message return-val)) "database-version") nil))
+          (is (:newer return-val))
+          (is (logged? #"Newer version 9000.0.0 is available!" :info)))))))
 
-  (testing "logs the correct message during an invalid version-check"
-    (with-test-logging
-      (jetty9/with-test-webserver server-error-app port
-        (let [return-val  (promise)
-              callback-fn (fn [resp]
-                            (deliver return-val resp))]
-          (check-for-updates! {:certname "some-certname" :cacert "some-cacert" :product-name "foo"}
-                              (format "http://localhost:%s" port) callback-fn)
-          (is (nil? @return-val))
-          (is (logged? #"Could not retrieve update information" :debug))))))
-
+(deftest test-send-telemetry
   (testing "does not send the actual certname or cacert"
     (with-test-logging
       (jetty9/with-test-webserver return-all-as-message-app port
-        (let [return-val (promise)
-              callback-fn (fn [resp] (deliver return-val resp))
-              certname "some-certname"
+        (let [certname "some-certname"
               cacert "some-cacert"
-              _ (check-for-updates! {:certname         certname
-                                     :cacert           cacert
-                                     :product-name     "foo"
-                                     :database-version "9.4"}
-                                    (format "http://localhost:%s" port) callback-fn)
-              message (json/parse-string (:message @return-val))]
+              return-val (send-telemetry {:certname certname
+                                          :cacert cacert
+                                          :product-name "foo"
+                                          :database-version "9.4"}
+                                         (format "http://localhost:%s" port))
+              message (json/parse-string (:message return-val))]
           (is (= (message "host-id") (get-hash certname)))
           (is (= (message "site-id") (get-hash cacert)))
           (is (nil? (message "certname")))
@@ -124,83 +94,109 @@
   (testing "sends agent_os instead of agent-os"
     (with-test-logging
       (jetty9/with-test-webserver return-all-as-message-app port
-        (let [return-val (promise)
-              callback-fn (fn [resp] (deliver return-val resp))
-              agent-os {"debian" 15 "centos" 5}
-              _ (check-for-updates! {:agent-os agent-os
-                                     :product-name     "foo"
-                                     :database-version "9.4"}
-                                    (format "http://localhost:%s" port) callback-fn)
-              message (json/parse-string (:message @return-val))]
+        (let [agent-os {"debian" 15 "centos" 5}
+              return-val (send-telemetry {:agent-os agent-os
+                                          :product-name "foo"
+                                          :database-version "9.4"}
+                                         (format "http://localhost:%s" port))
+              message (json/parse-string (:message return-val))]
           (is (= (message "agent_os") agent-os))
           (is (nil? (message "agent-os")))))))
 
   (testing "sends puppet_agent_versions instead of puppet-agent-versions"
     (with-test-logging
       (jetty9/with-test-webserver return-all-as-message-app port
-        (let [return-val (promise)
-              callback-fn (fn [resp] (deliver return-val resp))
-              puppet-agent-versions {"1.6.7" 15 "1.4.5" 5}
-              _ (check-for-updates! {:puppet-agent-versions puppet-agent-versions
-                                     :product-name     "foo"
-                                     :database-version "9.4"}
-                                    (format "http://localhost:%s" port) callback-fn)
-              message (json/parse-string (:message @return-val))]
+        (let [puppet-agent-versions {"1.6.7" 15 "1.4.5" 5}
+              return-val (send-telemetry {:puppet-agent-versions puppet-agent-versions
+                                          :product-name "foo"
+                                          :database-version "9.4"}
+                                         (format "http://localhost:%s" port))
+              message (json/parse-string (:message return-val))]
           (is (= (message "puppet_agent_versions") puppet-agent-versions))
           (is (nil? (message "puppet-agent-versions")))))))
 
   (testing "doesn't clobber agent_os"
     (with-test-logging
       (jetty9/with-test-webserver return-all-as-message-app port
-        (let [return-val (promise)
-              callback-fn (fn [resp] (deliver return-val resp))
-              agent_os {"debian" 15 "centos" 5}
-              _ (check-for-updates! {:agent_os agent_os
-                                     :product-name     "foo"
-                                     :database-version "9.4"}
-                                    (format "http://localhost:%s" port) callback-fn)
-              message (json/parse-string (:message @return-val))]
+        (let [agent_os {"debian" 15 "centos" 5}
+              return-val (send-telemetry {:agent_os agent_os
+                                          :product-name "foo"
+                                          :database-version "9.4"}
+                                         (format "http://localhost:%s" port))
+              message (json/parse-string (:message return-val))]
           (is (= (message "agent_os") agent_os))
           (is (nil? (message "agent-os")))))))
 
   (testing "only submits agent_os if both agent-os and agent_os are present"
     (with-test-logging
       (jetty9/with-test-webserver return-all-as-message-app port
-        (let [return-val (promise)
-              callback-fn (fn [resp] (deliver return-val resp))
-              agent_os {"debian" 15 "centos" 5}
+        (let [agent_os {"debian" 15 "centos" 5}
               agent-os {"debian" 20 "centos" 10}
-              _ (check-for-updates! {:agent_os agent_os
-                                     :agent-os agent-os
-                                     :product-name     "foo"
-                                     :database-version "9.4"}
-                                    (format "http://localhost:%s" port) callback-fn)
-              message (json/parse-string (:message @return-val))]
-          ; The original `agent_os` should be clobbered in this case.
+              return-val (send-telemetry {:agent_os agent_os
+                                          :agent-os agent-os
+                                          :product-name "foo"
+                                          :database-version "9.4"}
+                                         (format "http://localhost:%s" port))
+              message (json/parse-string (:message return-val))]
+          ;; The original `agent_os` should be clobbered in this case.
           (is (= (message "agent_os") agent-os))
           (is (nil? (message "agent-os")))))))
 
   (testing "sends the version number"
     (with-test-logging
       (jetty9/with-test-webserver return-all-as-message-app port
-        (let [return-val (promise)
-              callback-fn (fn [resp] (deliver return-val resp))]
-          (check-for-updates! {:product-name "foo"
+        (let [return-val
+              (send-telemetry {:product-name "foo"
                                :version "9.4"}
-                              (format "http://localhost:%s" port) callback-fn)
-          (is (= ((json/parse-string (:message @return-val)) "version") "9.4"))
-          (is (= ((json/parse-string (:message @return-val)) "product") "foo"))))))
+                              (format "http://localhost:%s" port))]
+          (is (= ((json/parse-string (:message return-val)) "version") "9.4"))
+          (is (= ((json/parse-string (:message return-val)) "product") "foo"))))))
 
   (testing "allows omitting certname and cacert for backwards compatibility"
     (with-test-logging
       (jetty9/with-test-webserver return-all-as-message-app port
-        (let [return-val (promise)
-              callback-fn (fn [resp] (deliver return-val resp))]
-          (check-for-updates! {:product-name "foo"
+        (let [return-val
+              (send-telemetry {:product-name "foo"
                                :database-version "9.4"}
-            (format "http://localhost:%s" port) callback-fn)
-          (is (= (:version @return-val) "9000.0.0"))))))
+                              (format "http://localhost:%s" port))]
+          (is (= (:version return-val) "9000.0.0")))))))
 
+
+(deftest error-handling-update
+  (testing "throws a slingshot exception when there is a connection error"
+    (with-test-logging
+      (jetty9/with-test-webserver return-all-as-message-app port
+        (is (thrown+? [:kind :puppetlabs.dujour.version-check/connection-error]
+                      (check-for-update {:product-name "foo"
+                                         :database-version "9.4"}
+                                        "http://localhost:1"))))))
+
+  (testing "throws a slingshot exception when an error is returned by the server"
+    (with-test-logging
+      (jetty9/with-test-webserver server-error-app port
+        (is (thrown+? [:kind :puppetlabs.dujour.version-check/http-error-code]
+                      (check-for-update {:product-name "foo"
+                                         :database-version "9.4"}
+                                        (format "http://localhost:%s" port))))))))
+
+(deftest error-handling-telemetry
+  (testing "throws a slingshot exception when there is a connection error"
+    (with-test-logging
+      (jetty9/with-test-webserver return-all-as-message-app port
+        (is (thrown+? [:kind :puppetlabs.dujour.version-check/connection-error]
+                      (send-telemetry {:product-name "foo"
+                                       :database-version "9.4"}
+                                      "http://localhost:1"))))))
+
+  (testing "throws a slingshot exception when an error is returned by the server"
+    (with-test-logging
+      (jetty9/with-test-webserver server-error-app port
+        (is (thrown+? [:kind :puppetlabs.dujour.version-check/http-error-code]
+                      (send-telemetry {:product-name "foo"
+                                       :database-version "9.4"}
+                                      (format "http://localhost:%s" port))))))))
+
+(deftest test-check-for-updates
   (testing "returns a future that can be dereferenced"
     (with-test-logging
       (jetty9/with-test-webserver return-all-as-message-app port
@@ -211,23 +207,7 @@
                                          (format "http://localhost:%s" port) callback-fn)
               result @future]
           (is (= "return string" result))
-          (is (= (:version @return-val) "9000.0.0"))))))
-
-  (testing "fails normally when connection is refused"
-    (with-test-logging
-      (jetty9/with-test-webserver return-all-as-message-app port
-        (let [result (check-for-updates! {:product-name "foo"
-                                          :database-version "9.4"}
-                                         (format "http://localhost:%s" 1) nil)]
-          (is (nil? @result))))))
-
-  (testing "fails normally with a bad reporting URL port"
-    (with-test-logging
-      (jetty9/with-test-webserver return-all-as-message-app port
-        (let [result (check-for-updates! {:product-name "foo"
-                                          :database-version "9.4"}
-                                         (format "http://not-a-real-domain-for-sure:%s" 1) nil)]
-          (is (nil? @result)))))))
+          (is (= (:version @return-val) "9000.0.0")))))))
 
 (deftest test-get-version-string
   (testing "get-version-string returns the correct version string"

@@ -5,7 +5,7 @@
 (defproject puppetlabs/dujour-version-check "0.1.9-SNAPSHOT"
   :description "Dujour Version Check library"
 
-  :dependencies [[org.clojure/clojure "1.6.0"]
+  :dependencies [[org.clojure/clojure "1.7.0"]
                  [org.clojure/tools.logging "0.3.1"]
                  [prismatic/schema "0.2.2"]
                  [puppetlabs/http-client "0.4.4"]

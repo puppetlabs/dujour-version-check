@@ -1,13 +1,14 @@
 (ns puppetlabs.dujour.version-check
-  (:require [clojure.tools.logging :as log]
-            [schema.core :as schema]
-            [ring.util.codec :as ring-codec]
+  (:require [cheshire.core :as json]
+            [clojure.set :as set]
+            [clojure.tools.logging :as log]
             [puppetlabs.http.client.sync :as client]
-            [cheshire.core :as json]
-            [trptcolin.versioneer.core :as version]
-            [slingshot.slingshot :as sling]
             [puppetlabs.kitchensink.core :as ks]
-            [clojure.set :as set]))
+            [ring.util.codec :as ring-codec]
+            [schema.core :as schema]
+            [slingshot.slingshot :refer [throw+ try+]]
+            [trptcolin.versioneer.core :as version])
+  (:import java.io.IOException))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;; Constants
@@ -88,10 +89,15 @@
                          (merge version-data)
                          json/generate-string)
         url update-server-url
-        {:keys [status body] :as resp} (client/post url
-                                         {:headers {"Accept" "application/json"}
-                                          :body request-body
-                                          :as :text})]
+        {:keys [status body] :as resp} (try
+                                         (client/post url
+                                                     {:headers {"Accept" "application/json"}
+                                                      :body request-body
+                                                      :as :text})
+                                         (catch IOException e
+                                           (throw+ {:kind ::connection-error
+                                                    :msg (.getMessage e)
+                                                    :cause e})))]
       {:status status :body body :resp resp}))
 
 (schema/defn ^:always-validate update-info :- (schema/maybe UpdateInfo)
@@ -108,9 +114,10 @@
       (json/parse-string body true)
 
       :else
-      (sling/throw+ {:type ::update-request-failed
-                     :message resp}))))
-
+      (throw+ {:kind ::http-error-code
+               :msg (format "Server returned HTTP status code %s" status)
+               :details {:status status
+                         :body body}}))))
 
 (defn validate-config!
   [request-values update-server-url]
@@ -125,10 +132,7 @@
   [request-values update-server-url]
   (log/debugf "Checking for newer versions of %s" (:product-name request-values))
   (let [update-server-url (or update-server-url default-update-server-url)
-        {:keys [version newer link] :as response} (try
-                                                    (update-info request-values update-server-url)
-                                                    (catch Exception e
-                                                      (log/debug e (format "Could not retrieve update information (%s)" update-server-url))))
+        {:keys [version newer link] :as response} (update-info request-values update-server-url)
         link-str (if link
                    (format " Visit %s for details." link)
                    "")
@@ -145,27 +149,47 @@
     (let [bytes (.digest md)]
       (reduce #(str %1 (format "%02x" %2)) "" bytes))))
 
+(defn- update-with-ids
+  [parameters]
+  (let [keys-present-to-hash (vec (keys (select-keys parameters [:cacert :certname])))]
+    (-> (ks/mapvals get-hash keys-present-to-hash parameters)
+        (set/rename-keys {:certname :host-id
+                          :cacert :site-id}))))
+
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;; Public
 
-(defn check-for-updates!
+(defn ^:deprecated check-for-updates!
+  "Check whether a newer version of the software is available and submit
+  telemetry data. This is deprecated in favor of `check-for-update` and
+  `send-telemetry` which separate these two operations (since users may want to
+  opt out of telemetry while still being notified of new versions)."
   ([request-values update-server-url]
     (check-for-updates! request-values update-server-url nil))
   ([request-values update-server-url callback-fn]
     (validate-config! request-values update-server-url)
     (future
-      (let [keys-present-to-hash (vec (keys (select-keys request-values [:cacert :certname])))
-            arguments (-> (ks/mapvals get-hash keys-present-to-hash request-values)
-                          (set/rename-keys {:certname :host-id
-                                            :cacert :site-id}))
-            server-response (try
-                              (version-check arguments update-server-url)
-                              (catch Exception e
-                                (log/warn e "Error occurred while checking for updates")
-                                (throw e)))]
+      (let [arguments (update-with-ids request-values)
+            server-response (version-check arguments update-server-url)]
         (if-not (nil? callback-fn)
           (callback-fn server-response)
           server-response)))))
+
+(schema/defn check-for-update
+  "Check whether a newer version of the software is available. It does not
+  submit any extra data beyond the product name and version. If a newer version
+  is available it will log a message to that effect and return a map describing
+  the newer version (see `UpdateInfo`)."
+  [request-values :- RequestValues
+   update-server-url :- (schema/maybe schema/Str)]
+  (version-check (select-keys request-values [:product-name :version]) update-server-url))
+
+(schema/defn send-telemetry
+  "Submit telemetry data. This will submit a map of data to the telemetry
+  service at the given url."
+  [request-values :- RequestValues
+   update-server-url :- schema/Str]
+  (update-info (update-with-ids request-values) update-server-url))
 
 (defn get-version-string
   ([product-name]
