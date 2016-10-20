@@ -95,17 +95,19 @@
                          (assoc "group" group-id)
                          (merge version-data)
                          json/generate-string)
-        url update-server-url
+        _ (log/tracef "Making update request to %s with data: %s" update-server-url request-body)
         {:keys [status body] :as resp} (try
-                                         (client/post url
-                                                     {:headers {"Accept" "application/json"}
-                                                      :body request-body
-                                                      :as :text})
+                                         (client/post update-server-url
+                                                      {:headers {"Accept" "application/json"}
+                                                       :body request-body
+                                                       :as :text})
                                          (catch HttpException e
                                            (throw-connection-error e))
                                          (catch IOException e
                                            (throw-connection-error e)))]
-      {:status status :body body :resp resp}))
+
+    (log/tracef "Received response from %s, status: %s, body: %s" update-server-url status body)
+    {:status status :body body :resp resp}))
 
 (defn- throw-unexpected-response
   [body]
