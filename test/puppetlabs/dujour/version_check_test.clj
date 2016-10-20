@@ -47,6 +47,11 @@
   {:status 500
    :body "aaaaaaaaaaaaaaaaaaaaaaaaaa"})
 
+(defn malformed-response-app
+  [_]
+  {:status 123
+   :body ""})
+
 (deftest test-check-for-update
   (testing "logs the correct version information during a valid version-check"
     (with-test-logging
@@ -177,6 +182,13 @@
         (is (thrown+? [:kind :puppetlabs.dujour.version-check/http-error-code]
                       (check-for-update {:product-name "foo"
                                          :database-version "9.4"}
+                                        (format "http://localhost:%s" port)))))))
+
+  (testing "throws a slingshot exception when the server returns a bad response (catches apache http exceptions)"
+    (with-test-logging
+      (jetty9/with-test-webserver malformed-response-app port
+        (is (thrown+? [:kind :puppetlabs.dujour.version-check/connection-error]
+                      (check-for-update {:product-name "foo"}
                                         (format "http://localhost:%s" port))))))))
 
 (deftest error-handling-telemetry

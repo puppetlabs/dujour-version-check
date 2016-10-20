@@ -4,11 +4,11 @@
             [clojure.tools.logging :as log]
             [puppetlabs.http.client.sync :as client]
             [puppetlabs.kitchensink.core :as ks]
-            [ring.util.codec :as ring-codec]
             [schema.core :as schema]
-            [slingshot.slingshot :refer [throw+ try+]]
+            [slingshot.slingshot :refer [throw+]]
             [trptcolin.versioneer.core :as version])
-  (:import java.io.IOException))
+  (:import java.io.IOException
+           org.apache.http.HttpException))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;; Constants
@@ -71,6 +71,12 @@
   "Get the version number of this installation."
   (memoize version*))
 
+(defn- throw-connection-error
+  [cause]
+  (throw+ {:kind ::connection-error
+           :msg (.getMessage cause)
+           :cause cause}))
+
 (schema/defn ^:always-validate update-info-post :- RequestResult
   "Make a POST request to the puppetlabs server to determine the latest available
   version."
@@ -94,10 +100,10 @@
                                                      {:headers {"Accept" "application/json"}
                                                       :body request-body
                                                       :as :text})
+                                         (catch HttpException e
+                                           (throw-connection-error e))
                                          (catch IOException e
-                                           (throw+ {:kind ::connection-error
-                                                    :msg (.getMessage e)
-                                                    :cause e})))]
+                                           (throw-connection-error e)))]
       {:status status :body body :resp resp}))
 
 (schema/defn ^:always-validate update-info :- (schema/maybe UpdateInfo)
