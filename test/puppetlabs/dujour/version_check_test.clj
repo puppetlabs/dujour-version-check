@@ -52,6 +52,28 @@
   {:status 123
    :body ""})
 
+(defn empty-response-app
+  [_]
+  {:status 200
+   :body "{}"})
+
+(defn malformed-body-app
+  [_]
+  {:status 200
+   :body "wow what's going on here"})
+
+(defn extra-fields-app
+  [_]
+  {:status 200
+   :body (json/encode {:newer true
+                       :link "http://zombo.com"
+                       :message "woooo"
+                       :product "zombocom"
+                       :version "1000000"
+                       :you "can"
+                       :do "anything"
+                       :at "zombocom"})})
+
 (deftest test-check-for-update
   (testing "logs the correct version information during a valid version-check"
     (with-test-logging
@@ -77,7 +99,17 @@
           (is (= (:version return-val) "9000.0.0"))
           (is (= ((json/parse-string (:message return-val)) "database-version") nil))
           (is (:newer return-val))
-          (is (logged? #"Newer version 9000.0.0 is available!" :info)))))))
+          (is (logged? #"Newer version 9000.0.0 is available!" :info))))))
+
+  (testing "allows but does not return extra response fields"
+    (with-test-logging
+      (jetty9/with-test-webserver extra-fields-app port
+        (is (= [:version :newer :link :product :message]
+               (keys (check-for-update {:certname "some-certname"
+                                        :cacert "some-cacert"
+                                        :product-name "foo"
+                                        :database-version "9.4"}
+                                       (format "http://localhost:%s" port)))))))))
 
 (deftest test-send-telemetry
   (testing "does not send the actual certname or cacert"
@@ -188,6 +220,20 @@
     (with-test-logging
       (jetty9/with-test-webserver malformed-response-app port
         (is (thrown+? [:kind :puppetlabs.dujour.version-check/connection-error]
+                      (check-for-update {:product-name "foo"}
+                                        (format "http://localhost:%s" port)))))))
+
+  (testing "throws a slingshot exception when the server returns valid but unexpected json"
+    (with-test-logging
+      (jetty9/with-test-webserver empty-response-app port
+        (is (thrown+? [:kind :puppetlabs.dujour.version-check/unexpected-response]
+                      (check-for-update {:product-name "foo"}
+                                        (format "http://localhost:%s" port)))))))
+
+  (testing "throws a slingshot exception when the server returns a malformed body"
+    (with-test-logging
+      (jetty9/with-test-webserver malformed-body-app port
+        (is (thrown+? [:kind :puppetlabs.dujour.version-check/unexpected-response]
                       (check-for-update {:product-name "foo"}
                                         (format "http://localhost:%s" port))))))))
 

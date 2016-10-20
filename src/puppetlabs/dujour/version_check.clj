@@ -7,7 +7,8 @@
             [schema.core :as schema]
             [slingshot.slingshot :refer [throw+]]
             [trptcolin.versioneer.core :as version])
-  (:import java.io.IOException
+  (:import com.fasterxml.jackson.core.JsonParseException
+           java.io.IOException
            org.apache.http.HttpException))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -106,7 +107,23 @@
                                            (throw-connection-error e)))]
       {:status status :body body :resp resp}))
 
-(schema/defn ^:always-validate update-info :- (schema/maybe UpdateInfo)
+(defn- throw-unexpected-response
+  [body]
+  (throw+ {:kind ::unexpected-response
+           :msg "Server returned HTTP code 200 but the body was not understood."
+           :details {:body body}}))
+
+(defn- parse-body
+  [body]
+  (try
+    (let [update-response (json/parse-string body true)]
+      (if (schema/check (merge UpdateInfo {schema/Any schema/Any}) update-response)
+        (throw-unexpected-response body)
+        (select-keys update-response [:version :newer :link :product :message])))
+    (catch JsonParseException _
+      (throw-unexpected-response body))))
+
+(schema/defn ^:always-validate update-info :- UpdateInfo
   "Make a request to the puppetlabs server to determine the latest available
   version. Attempts a POST request before falling back to a GET request.
   Returns the JSON object received from the server, which is expected to be
@@ -117,7 +134,7 @@
   (let [{:keys [status body resp]} (update-info-post request-values update-server-url)]
     (cond
       (= status 200)
-      (json/parse-string body true)
+      (parse-body body)
 
       :else
       (throw+ {:kind ::http-error-code
