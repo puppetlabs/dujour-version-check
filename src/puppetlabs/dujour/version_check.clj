@@ -4,11 +4,12 @@
             [clojure.tools.logging :as log]
             [puppetlabs.http.client.sync :as client]
             [puppetlabs.kitchensink.core :as ks]
-            [ring.util.codec :as ring-codec]
             [schema.core :as schema]
-            [slingshot.slingshot :refer [throw+ try+]]
+            [slingshot.slingshot :refer [throw+]]
             [trptcolin.versioneer.core :as version])
-  (:import java.io.IOException))
+  (:import com.fasterxml.jackson.core.JsonParseException
+           java.io.IOException
+           org.apache.http.HttpException))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;; Constants
@@ -71,6 +72,12 @@
   "Get the version number of this installation."
   (memoize version*))
 
+(defn- throw-connection-error
+  [cause]
+  (throw+ {:kind ::connection-error
+           :msg (.getMessage cause)
+           :cause cause}))
+
 (schema/defn ^:always-validate update-info-post :- RequestResult
   "Make a POST request to the puppetlabs server to determine the latest available
   version."
@@ -88,19 +95,37 @@
                          (assoc "group" group-id)
                          (merge version-data)
                          json/generate-string)
-        url update-server-url
+        _ (log/tracef "Making update request to %s with data: %s" update-server-url request-body)
         {:keys [status body] :as resp} (try
-                                         (client/post url
-                                                     {:headers {"Accept" "application/json"}
-                                                      :body request-body
-                                                      :as :text})
+                                         (client/post update-server-url
+                                                      {:headers {"Accept" "application/json"}
+                                                       :body request-body
+                                                       :as :text})
+                                         (catch HttpException e
+                                           (throw-connection-error e))
                                          (catch IOException e
-                                           (throw+ {:kind ::connection-error
-                                                    :msg (.getMessage e)
-                                                    :cause e})))]
-      {:status status :body body :resp resp}))
+                                           (throw-connection-error e)))]
 
-(schema/defn ^:always-validate update-info :- (schema/maybe UpdateInfo)
+    (log/tracef "Received response from %s, status: %s, body: %s" update-server-url status body)
+    {:status status :body body :resp resp}))
+
+(defn- throw-unexpected-response
+  [body]
+  (throw+ {:kind ::unexpected-response
+           :msg "Server returned HTTP code 200 but the body was not understood."
+           :details {:body body}}))
+
+(defn- parse-body
+  [body]
+  (try
+    (let [update-response (json/parse-string body true)]
+      (if (schema/check (merge UpdateInfo {schema/Any schema/Any}) update-response)
+        (throw-unexpected-response body)
+        (select-keys update-response [:version :newer :link :product :message])))
+    (catch JsonParseException _
+      (throw-unexpected-response body))))
+
+(schema/defn ^:always-validate update-info :- UpdateInfo
   "Make a request to the puppetlabs server to determine the latest available
   version. Attempts a POST request before falling back to a GET request.
   Returns the JSON object received from the server, which is expected to be
@@ -111,7 +136,7 @@
   (let [{:keys [status body resp]} (update-info-post request-values update-server-url)]
     (cond
       (= status 200)
-      (json/parse-string body true)
+      (parse-body body)
 
       :else
       (throw+ {:kind ::http-error-code
