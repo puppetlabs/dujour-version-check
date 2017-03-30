@@ -90,7 +90,8 @@
         request-body (-> request-values
                          (dissoc :product-name)
                          (set/rename-keys {:agent-os :agent_os
-                                           :puppet-agent-versions :puppet_agent_versions})
+                                           :puppet-agent-versions :puppet_agent_versions
+                                           :agent-cloud-platforms :agent_cloud_platforms})
                          (assoc "product" artifact-id)
                          (assoc "group" group-id)
                          (merge version-data)
