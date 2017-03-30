@@ -152,6 +152,18 @@
           (is (= (message "puppet_agent_versions") puppet-agent-versions))
           (is (nil? (message "puppet-agent-versions")))))))
 
+  (testing "sends agent_cloud_platforms instead of agent-cloud-platforms"
+    (with-test-logging
+      (jetty9/with-test-webserver return-all-as-message-app port
+        (let [agent-cloud-platforms {"azure" 15 "gce" 5}
+              return-val (send-telemetry {:agent-cloud-platforms agent-cloud-platforms
+                                          :product-name "foo"
+                                          :database-version "9.4"}
+                                         (format "http://localhost:%s" port))
+              message (json/parse-string (:message return-val))]
+             (is (= (message "agent_cloud_platforms") agent-cloud-platforms))
+             (is (nil? (message "agent-cloud-platforms")))))))
+
   (testing "doesn't clobber agent_os"
     (with-test-logging
       (jetty9/with-test-webserver return-all-as-message-app port
