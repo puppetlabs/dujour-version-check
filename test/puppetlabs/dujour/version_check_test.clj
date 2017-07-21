@@ -40,7 +40,8 @@
                                   :link "http://foo.com"
                                   :message (json/generate-string params)
                                   :product "foo"
-                                  :version "9000.0.0"})}))
+                                  :version "9000.0.0"
+                                  :whitelist {"namespace.name" {:datatype "string", :description "something"}}})}))
 
 (defn server-error-app
   [_]
@@ -70,6 +71,7 @@
                        :message "woooo"
                        :product "zombocom"
                        :version "1000000"
+                       :whitelist {"namespace.name" {:datatype "string", :description "something"}}
                        :you "can"
                        :do "anything"
                        :at "zombocom"})})
@@ -98,13 +100,14 @@
                                 (format "http://localhost:%s" port))]
           (is (= (:version return-val) "9000.0.0"))
           (is (= ((json/parse-string (:message return-val)) "database-version") nil))
+          (is (= (:whitelist return-val) {:namespace.name {:datatype "string", :description "something"}}))
           (is (:newer return-val))
           (is (logged? #"Newer version 9000.0.0 is available!" :info))))))
 
   (testing "allows but does not return extra response fields"
     (with-test-logging
       (jetty9/with-test-webserver extra-fields-app port
-        (is (= [:version :newer :link :product :message]
+        (is (= [:version :newer :link :product :message :whitelist]
                (keys (check-for-update {:certname "some-certname"
                                         :cacert "some-cacert"
                                         :product-name "foo"

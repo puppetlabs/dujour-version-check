@@ -40,7 +40,8 @@
    :newer schema/Bool
    :link schema/Str
    :product schema/Str
-   (schema/optional-key :message) schema/Str})
+   (schema/optional-key :message) schema/Str
+   (schema/optional-key :whitelist) {schema/Keyword {schema/Keyword schema/Str}}})
 
 (def RequestResult
   {:status schema/Int
@@ -121,7 +122,7 @@
     (let [update-response (json/parse-string body true)]
       (if (schema/check (merge UpdateInfo {schema/Any schema/Any}) update-response)
         (throw-unexpected-response body)
-        (select-keys update-response [:version :newer :link :product :message])))
+        (select-keys update-response [:version :newer :link :product :message :whitelist])))
     (catch JsonParseException _
       (throw-unexpected-response body))))
 
