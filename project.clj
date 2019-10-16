@@ -1,27 +1,46 @@
-(def ks-version "1.0.0")
-(def tk-version "1.0.0")
-(def tk-jetty-version "1.0.0")
-
 (defproject puppetlabs/dujour-version-check "0.2.3-SNAPSHOT"
   :description "Dujour Version Check library"
 
-  :dependencies [[org.clojure/clojure "1.7.0"]
-                 [org.clojure/tools.logging "0.3.1"]
-                 [prismatic/schema "0.2.2"]
-                 [puppetlabs/http-client "0.4.4"]
-                 [ring/ring-codec "1.0.0"]
-                 [cheshire "5.3.1"]
-                 [trptcolin/versioneer "0.1.0"]
-                 [slingshot "0.10.3"]]
+  :parent-project {:coords [puppetlabs/clj-parent "4.2.4"]
+                   :inherit [:managed-dependencies]}
+
+  :plugins [[lein-parent "0.3.7"]]
+
+  :dependencies [[org.clojure/clojure]
+                 [org.clojure/tools.logging]
+                 [prismatic/schema]
+                 [puppetlabs/http-client]
+                 [ring/ring-codec]
+                 [cheshire]
+                 [trptcolin/versioneer]
+                 [slingshot]]
+
+  :repositories [["releases" "https://artifactory.delivery.puppetlabs.net/artifactory/clojure-releases__local/"]
+                 ["snapshots" "https://artifactory.delivery.puppetlabs.net/artifactory/clojure-snapshots__local/"]]
 
   :deploy-repositories [["releases" {:url "https://clojars.org/repo"
                                      :username :env/clojars_jenkins_username
                                      :password :env/clojars_jenkins_password
                                      :sign-releases false}]]
 
-  :profiles {:dev {:dependencies [[puppetlabs/trapperkeeper ~tk-version :classifier "test" :scope "test"]
-                                  [puppetlabs/kitchensink ~ks-version :classifier "test" :scope "test"]
-                                  [puppetlabs/trapperkeeper-webserver-jetty9 ~tk-jetty-version]
-                                  [puppetlabs/trapperkeeper-webserver-jetty9 ~tk-jetty-version :classifier "test"]
-                                  [ring-mock "0.1.5"]]}}
+  :profiles {:defaults {:dependencies [[puppetlabs/trapperkeeper :classifier "test" :scope "test"]
+                                       [puppetlabs/kitchensink :classifier "test" :scope "test"]
+                                       [puppetlabs/trapperkeeper-webserver-jetty9]
+                                       [puppetlabs/trapperkeeper-webserver-jetty9 :classifier "test"]
+                                       [ring-mock "0.1.5"]]}
+             :dev [:defaults {:dependencies [[org.bouncycastle/bcpkix-jdk15on]]}]
+             :fips [:defaults {:dependencies [[org.bouncycastle/bctls-fips]
+                                              [org.bouncycastle/bcpkix-fips]
+                                              [org.bouncycastle/bc-fips]]
+                               :jvm-opts ~(let [version (System/getProperty "java.version")
+                                                [major minor _] (clojure.string/split version #"\.")
+                                                unsupported-ex (ex-info "Unsupported major Java version. Expects 8 or 11."
+                                                                 {:major major
+                                                                  :minor minor})]
+                                            (condp = (java.lang.Integer/parseInt major)
+                                              1 (if (= 8 (java.lang.Integer/parseInt minor))
+                                                  ["-Djava.security.properties==./dev-resources/java.security.jdk8-fips"]
+                                                  (throw unsupported-ex))
+                                              11 ["-Djava.security.properties==./dev-resources/java.security.jdk11-fips"]
+                                              (throw unsupported-ex)))}]}
   )
