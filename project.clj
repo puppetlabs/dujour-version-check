@@ -12,7 +12,6 @@
                  [puppetlabs/http-client]
                  [ring/ring-codec]
                  [cheshire]
-                 [org.bouncycastle/bcpkix-jdk15on]
                  [trptcolin/versioneer]
                  [slingshot]]
 
@@ -24,9 +23,24 @@
                                      :password :env/clojars_jenkins_password
                                      :sign-releases false}]]
 
-  :profiles {:dev {:dependencies [[puppetlabs/trapperkeeper :classifier "test" :scope "test"]
-                                  [puppetlabs/kitchensink :classifier "test" :scope "test"]
-                                  [puppetlabs/trapperkeeper-webserver-jetty9]
-                                  [puppetlabs/trapperkeeper-webserver-jetty9 :classifier "test"]
-                                  [ring-mock "0.1.5"]]}}
+  :profiles {:defaults {:dependencies [[puppetlabs/trapperkeeper :classifier "test" :scope "test"]
+                                       [puppetlabs/kitchensink :classifier "test" :scope "test"]
+                                       [puppetlabs/trapperkeeper-webserver-jetty9]
+                                       [puppetlabs/trapperkeeper-webserver-jetty9 :classifier "test"]
+                                       [ring-mock "0.1.5"]]}
+             :dev [:defaults {:dependencies [[org.bouncycastle/bcpkix-jdk15on]]}]
+             :fips [:defaults {:dependencies [[org.bouncycastle/bctls-fips]
+                                              [org.bouncycastle/bcpkix-fips]
+                                              [org.bouncycastle/bc-fips]]
+                               :jvm-opts ~(let [version (System/getProperty "java.version")
+                                                [major minor _] (clojure.string/split version #"\.")
+                                                unsupported-ex (ex-info "Unsupported major Java version. Expects 8 or 11."
+                                                                 {:major major
+                                                                  :minor minor})]
+                                            (condp = (java.lang.Integer/parseInt major)
+                                              1 (if (= 8 (java.lang.Integer/parseInt minor))
+                                                  ["-Djava.security.properties==./dev-resources/java.security.jdk8-fips"]
+                                                  (throw unsupported-ex))
+                                              11 ["-Djava.security.properties==./dev-resources/java.security.jdk11-fips"]
+                                              (throw unsupported-ex)))}]}
   )
