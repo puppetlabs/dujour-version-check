@@ -1,10 +1,10 @@
-(defproject puppetlabs/dujour-version-check "0.2.4-SNAPSHOT"
+(defproject puppetlabs/dujour-version-check "0.3.0-SNAPSHOT"
   :description "Dujour Version Check library"
 
-  :parent-project {:coords [puppetlabs/clj-parent "4.2.4"]
+  :parent-project {:coords [puppetlabs/clj-parent "4.9.4"]
                    :inherit [:managed-dependencies]}
 
-  :plugins [[lein-parent "0.3.7"]]
+  :plugins [[lein-parent "0.3.8"]]
 
   :dependencies [[org.clojure/clojure]
                  [org.clojure/tools.logging]
