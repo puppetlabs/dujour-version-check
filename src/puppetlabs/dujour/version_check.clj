@@ -15,7 +15,7 @@
 ;;; Constants
 
 (def default-group-id "puppetlabs.packages")
-(def default-update-server-url "http://updates.puppetlabs.com")
+(def default-update-server-url "https://updates.puppetlabs.com")
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;; Schemas
