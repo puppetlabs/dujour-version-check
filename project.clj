@@ -1,4 +1,4 @@
-(defproject puppetlabs/dujour-version-check "1.0.0-SNAPSHOT"
+(defproject puppetlabs/dujour-version-check "1.0.0"
   :description "Dujour Version Check library"
 
   :parent-project {:coords [puppetlabs/clj-parent "5.2.6"]
